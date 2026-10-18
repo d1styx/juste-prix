@@ -75,4 +75,4 @@ Ensuite l'API renvoyait une erreur 500. Dans `docker compose logs back` on a vu 
 
 ## Utilisation de l'IA
 
-On s'est aidés d'une IA (Claude) par moments, surtout pour le débogage, les erreurs ci-dessus, et pour la mise en forme de ce README.
+On s'est aidés d'une IA (Claude) par moments, surtout pour le débogage, les erreurs ci-dessus.
