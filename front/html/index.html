@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Le Juste Prix</title>
+</head>
+<body>
+  <h1>Le Juste Prix</h1>
+  <p>Trouvez le nombre secret entre 1 et 100 en un minimum d'essais.</p>
+
+  <div id="debut">
+    <input id="pseudo" placeholder="Votre pseudo" maxlength="30">
+    <button onclick="nouvellePartie()">Jouer</button>
+  </div>
+
+  <div id="jeu" hidden>
+    <input id="nombre" type="number" min="1" max="100">
+    <button onclick="proposer()">Proposer</button>
+  </div>
+
+  <p id="message"></p>
+
+  <h2>Meilleurs scores</h2>
+  <ol id="scores"></ol>
+
+  <script>
+    let idPartie = null;
+
+    // Envoie une requête à l'API (POST si on a des données, GET sinon)
+    async function appelApi(url, donnees) {
+      const options = donnees
+        ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(donnees) }
+        : {};
+      const reponse = await fetch(url, options);
+      return reponse.json();
+    }
+
+    async function nouvellePartie() {
+      const pseudo = document.getElementById("pseudo").value || "anonyme";
+      const partie = await appelApi("/api/partie", { pseudo: pseudo });
+      idPartie = partie.id;
+      document.getElementById("debut").hidden = true;
+      document.getElementById("jeu").hidden = false;
+      document.getElementById("message").textContent = "C'est parti !";
+    }
+
+    async function proposer() {
+      const nombre = Number(document.getElementById("nombre").value);
+      const r = await appelApi("/api/essai", { id: idPartie, nombre: nombre });
+      const message = document.getElementById("message");
+
+      if (r.resultat === "plus") {
+        message.textContent = "C'est plus ! (" + r.essais + " essais)";
+      } else if (r.resultat === "moins") {
+        message.textContent = "C'est moins ! (" + r.essais + " essais)";
+      } else {
+        message.textContent = "Gagné en " + r.essais + " essais !";
+        document.getElementById("jeu").hidden = true;
+        document.getElementById("debut").hidden = false;
+        afficherScores();
+      }
+    }
+
+    async function afficherScores() {
+      const scores = await appelApi("/api/scores");
+      const liste = document.getElementById("scores");
+      liste.innerHTML = "";
+      for (const s of scores) {
+        const ligne = document.createElement("li");
+        // textContent et pas innerHTML : un pseudo piégé ne peut pas injecter de code
+        ligne.textContent = s.pseudo + " : " + s.essais + " essais";
+        liste.appendChild(ligne);
+      }
+    }
+
+    afficherScores();
+  </script>
+</body>
+</html>

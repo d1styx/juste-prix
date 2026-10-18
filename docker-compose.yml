@@ -1,0 +1,57 @@
+# Stack du Juste Prix : front (Nginx) -> back (Python) -> base (MySQL)
+# Lancement : docker compose up -d --build
+
+services:
+  db:
+    # Image officielle, version fixée
+    image: mysql:8.4
+    restart: unless-stopped
+    # Les identifiants viennent du fichier .env, qui n'est pas sur git
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      # Les données sont gardées même si on supprime le conteneur
+      - db_data:/var/lib/mysql
+      # Exécuté au premier démarrage pour créer la table des scores
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - reseau_back
+    # Pas de "ports" : la base n'est pas joignable depuis l'extérieur
+
+  back:
+    build: ./back
+    image: juste-prix-back:v1
+    restart: unless-stopped
+    # Le back n'a besoin que du compte applicatif, pas du mot de passe root
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    depends_on:
+      - db
+    networks:
+      - reseau_back
+      - reseau_front
+
+  front:
+    build: ./front
+    image: juste-prix-front:v1
+    restart: unless-stopped
+    ports:
+      # Seul point d'entrée : port 80 du serveur vers le 8080 de nginx
+      - "80:8080"
+    depends_on:
+      - back
+    networks:
+      - reseau_front
+
+volumes:
+  db_data:
+
+networks:
+  # Le front ne voit que le back, et seul le back voit la base
+  reseau_front:
+  reseau_back:

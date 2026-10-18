@@ -1,0 +1,7 @@
+# Secrets locaux : seul .env.example (sans vraies valeurs) est versionné
+.env
+# Configuration VPN, ne jamais versionner
+*.ovpn
+# Caches Python
+__pycache__/
+*.pyc
