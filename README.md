@@ -1,97 +1,61 @@
 # Le Juste Prix
 
-Projet Docker réalisé par Yassine Osman, Estaban et Romain Astier.
+Projet Docker de Yassine Osman, Estaban et Romain Astier.
 
-Une version web du jeu « Le Juste Prix » : le joueur doit trouver un nombre secret entre 1 et 100, le jeu lui répond « c'est plus » ou « c'est moins », et les meilleurs scores sont enregistrés en base.
+C'est une version web du jeu Le Juste Prix : il faut trouver un nombre entre 1 et 100, le jeu répond "c'est plus" ou "c'est moins", et les meilleurs scores sont gardés dans une base de données.
 
-## Architecture
+## Ce qu'il y a dans la stack
 
-La stack contient 3 services, lancés par `docker compose` :
+On a 3 services dans le docker-compose :
 
-```
-Navigateur ──> front (Nginx, port 80) ──> back (API Python) ──> db (MySQL)
-```
+- front : un Nginx qui sert la page du jeu. Il renvoie aussi tout ce qui commence par /api vers le back.
+- back : une petite API en Python (Flask). C'est elle qui tire le nombre secret et vérifie les propositions.
+- db : MySQL 8.4, l'image officielle. Elle stocke les pseudos et les scores.
 
-| Service | Image | Rôle |
-|---------|-------|------|
-| `front` | construite depuis `front/Dockerfile` (base `nginx-unprivileged:1.27-alpine`) | Sert la page du jeu et transmet les appels `/api` au back |
-| `back` | construite depuis `back/Dockerfile` (base `python:3.12-slim`) | API Flask : tire le nombre secret, vérifie les propositions, enregistre les scores |
-| `db` | `mysql:8.4` (image officielle) | Stocke les pseudos et les scores |
+Le navigateur parle seulement au front, le front parle au back, et seul le back parle à la base.
 
-Organisation des fichiers :
+Il y a un Dockerfile pour le back et un pour le front. Pour la base on n'en a pas fait, l'image officielle suffit : on lui donne juste notre script `db/init.sql` qui crée la table au premier démarrage.
 
-```
-juste-prix/
-├── docker-compose.yml   # définition des 3 services
-├── .env.example         # modèle des variables (sans vrais mots de passe)
-├── back/
-│   ├── Dockerfile
-│   ├── requirements.txt # bibliothèques Python, versions fixées
-│   └── app/main.py      # code de l'API
-├── front/
-│   ├── Dockerfile
-│   ├── nginx.conf       # config Nginx (page + redirection /api)
-│   └── html/index.html  # page du jeu
-└── db/
-    └── init.sql         # création de la table des scores
-```
+## Lancer le projet
 
-## Prérequis
-
-- Une machine Debian avec Docker et le plugin Docker Compose
-- Le port 80 libre
-
-## Installation
+Il faut une machine avec Docker et Docker Compose, et le port 80 libre.
 
 ```bash
-git clone <url-du-depot> juste-prix
+git clone https://github.com/d1styx/juste-prix.git
 cd juste-prix
-
-# Créer le fichier des secrets à partir du modèle
 cp .env.example .env
-nano .env    # remplacer les deux mots de passe
-
-# Construire les images et lancer la stack
+nano .env
 docker compose up -d --build
 ```
 
-Au premier lancement, MySQL a besoin d'environ 30 secondes pour s'initialiser.
+Dans le `.env`, il faut changer les deux mots de passe. MySQL met une trentaine de secondes à démarrer la première fois, ensuite le jeu est sur `http://<ip du serveur>`.
 
-Le jeu est ensuite accessible sur `http://<ip-du-serveur>`.
-
-## Vérifier que tout marche
+Pour vérifier :
 
 ```bash
-docker compose ps                         # les 3 services doivent être "Up"
-curl http://localhost/api/scores          # doit répondre [] ou la liste des scores
-docker compose logs back                  # en cas d'erreur côté API
+docker compose ps
+curl http://localhost/api/scores
 ```
 
-## Commandes utiles
+`docker compose ps` doit montrer les 3 conteneurs "Up", et le curl doit renvoyer `[]` (ou la liste des scores s'il y en a).
 
-```bash
-docker compose stop      # arrêter sans rien supprimer
-docker compose down      # supprimer les conteneurs (les scores sont gardés dans le volume)
-docker compose down -v   # tout supprimer, y compris les scores
-```
+Pour arrêter : `docker compose down`. Les scores restent dans le volume, sauf si on ajoute `-v`.
 
-## Choix techniques et sécurité
+## Sécurité
 
-- **Un conteneur par service** : la base, l'API et le serveur web sont séparés, on peut les mettre à jour indépendamment.
-- **Pas de mot de passe dans le code** : les identifiants MySQL sont dans `.env`, qui est dans le `.gitignore`. Seul `.env.example` est versionné.
-- **Le back n'a pas le mot de passe root** de MySQL, seulement celui de son compte applicatif.
-- **Conteneurs sans root** : le back tourne avec un utilisateur `appuser` créé dans le Dockerfile, et le front utilise la variante `nginx-unprivileged`.
-- **Un seul port exposé** : seul le front publie un port (80). La base et l'API ne sont pas joignables depuis l'extérieur.
-- **Deux réseaux Docker** : `reseau_front` (front et back) et `reseau_back` (back et base). Le front ne peut donc pas parler directement à la base.
-- **Versions fixées** pour les images et les bibliothèques Python, pour que la construction donne le même résultat partout.
-- **Images légères** : variantes `slim` et `alpine`.
-- **Pas de triche** : le nombre secret est tiré et gardé côté serveur, le navigateur ne le reçoit jamais.
-- **Requêtes SQL paramétrées** pour éviter les injections, et affichage des pseudos avec `textContent` côté page.
-- `server_tokens off` dans Nginx pour ne pas afficher sa version.
+On a essayé de faire attention à plusieurs choses :
 
-## Note pour le serveur de l'école (EVA)
+- Les mots de passe ne sont pas dans le docker-compose mais dans un fichier `.env` qui est dans le `.gitignore`. Sur git il n'y a que `.env.example` avec des fausses valeurs.
+- Le back n'a pas le mot de passe root de MySQL, seulement celui de son utilisateur.
+- Les conteneurs ne tournent pas en root. Dans le Dockerfile du back on crée un utilisateur `appuser`, et pour le front on utilise l'image `nginx-unprivileged`.
+- Seul le front ouvre un port sur la machine. La base et l'API ne sont pas accessibles de l'extérieur.
+- On a mis deux réseaux Docker, comme ça le front ne peut pas joindre la base directement.
+- Les versions des images et des librairies Python sont fixées.
+- Le nombre secret reste côté serveur, donc on ne peut pas tricher en regardant le code de la page.
 
-Sur le réseau de l'université, les constructions d'images n'ont pas d'accès direct à Internet (`pip install` échoue). Il faut déclarer le proxy de l'université dans `~/.docker/config.json`, sur le serveur uniquement :
+## Les problèmes qu'on a rencontrés
+
+Sur le serveur de l'école (EVA), le premier `docker build` du back a échoué : `pip install` n'arrivait pas à télécharger les librairies ("Network is unreachable"). Le serveur doit passer par le proxy de l'université. On l'a réglé dans `~/.docker/config.json` sur le serveur, pas dans le projet, pour que le projet marche aussi ailleurs :
 
 ```json
 {
@@ -105,4 +69,10 @@ Sur le réseau de l'université, les constructions d'images n'ont pas d'accès d
 }
 ```
 
-Ce réglage n'est pas dans le projet, qui reste donc déployable sur n'importe quelle machine sans proxy. Pour tester avec `curl` sur ce serveur, ajouter `--noproxy '*'`.
+À cause de ce même proxy, un `curl http://localhost/...` sur le serveur nous renvoyait une erreur 301. Il faut ajouter `--noproxy '*'` pour tester en local.
+
+Ensuite l'API renvoyait une erreur 500. Dans `docker compose logs back` on a vu que PyMySQL avait besoin de la librairie `cryptography` pour se connecter à MySQL 8.4. On l'a ajoutée dans `requirements.txt` et ça a marché.
+
+## Utilisation de l'IA
+
+On s'est aidés d'une IA (Claude) par moments, surtout pour le débogage, les erreurs ci-dessus, et pour la mise en forme de ce README.
