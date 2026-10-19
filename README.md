@@ -211,4 +211,4 @@ Ce qu'on a fait pour la sécurité :
 
 ## 8. Utilisation de l'IA
 
-On s'est aidés d'une IA (Claude) par moments, surtout pour le débogage (les problèmes ci-dessus) et pour la mise en forme de ce README.
+On s'est aidés d'une IA (Claude) par moments, surtout pour le débogage (les problèmes ci-dessus).
